@@ -1,4 +1,4 @@
-# app.py — DataPulse AI Dashboard
+# app.py — DataPulse AI Dashboard (Stock + Crypto)
 import streamlit as st
 import plotly.graph_objects as pgo
 from orchestrator import run_datapulse
@@ -33,6 +33,7 @@ st.markdown("""
     --blue-dim:  rgba(56,189,248,0.1);
     --gold:      #fbbf24;
     --gold-dim:  rgba(251,191,36,0.1);
+    --purple:    #a78bfa;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -73,20 +74,19 @@ html, body,
 [data-testid="stTextInput"] label { display: none !important; }
 
 [data-testid="stButton"] button {
-    background: var(--green) !important;
-    color: #07090f !important;
-    border: none !important;
+    background: var(--bg3) !important;
+    color: var(--muted) !important;
+    border: 1px solid var(--border2) !important;
     border-radius: 10px !important;
     font-family: 'Manrope', sans-serif !important;
-    font-weight: 800 !important;
-    font-size: 15px !important;
-    padding: 14px 32px !important;
+    font-weight: 700 !important;
+    font-size: 14px !important;
+    padding: 12px 24px !important;
     transition: all 0.2s !important;
 }
 [data-testid="stButton"] button:hover {
-    background: #00f097 !important;
-    box-shadow: 0 0 24px rgba(0,208,132,0.4) !important;
-    transform: translateY(-1px) !important;
+    border-color: var(--green) !important;
+    color: var(--green) !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -96,7 +96,7 @@ st.markdown("""
 <div style="background:var(--bg2); border-bottom:1px solid var(--border); padding:0 40px; height:60px; display:flex; align-items:center; justify-content:space-between;">
     <div style="display:flex; align-items:center; gap:14px;">
         <div style="width:36px; height:36px; background:linear-gradient(135deg,#00d084,#38bdf8); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px;">📡</div>
-        <span style="font-family:'Manrope',sans-serif; font-weight:800; font-size:22px; letter-spacing:-0.5px;">Data<span style="color:var(--green);">Pulse</span> <span style="font-size:14px; color:var(--muted); font-weight:400;">AI</span></span>
+        <span style="font-family:'Manrope',sans-serif; font-weight:800; font-size:22px; letter-spacing:-0.5px; color:var(--text);">Data<span style="color:var(--green);">Pulse</span> <span style="font-size:14px; color:var(--muted); font-weight:400;">AI</span></span>
     </div>
     <div style="display:flex; align-items:center; gap:8px;">
         <div style="width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green);"></div>
@@ -105,30 +105,59 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ── HERO + SEARCH ─────────────────────────────────────────────
+# ── HERO ──────────────────────────────────────────────────────
 st.markdown("<div style='padding:40px 48px 0;'>", unsafe_allow_html=True)
 
 st.markdown("""
-<div style="text-align:center; margin-bottom:32px;">
+<div style="text-align:center; margin-bottom:28px;">
     <div style="font-family:'Manrope',sans-serif; font-size:44px; font-weight:800; color:var(--text); letter-spacing:-1px; line-height:1.1; margin-bottom:10px;">
-        Real-time AI intelligence<br><span style="color:var(--green);">on any stock.</span>
+        Real-time AI intelligence<br><span style="color:var(--green);">on any stock or crypto.</span>
     </div>
-    <div style="font-size:16px; color:var(--muted);">Type a company or ticker. 5 AI agents analyze it in real time.</div>
+    <div style="font-size:16px; color:var(--muted);">Choose your asset type, type a name or ticker. 5 AI agents analyze it in real time.</div>
 </div>
 """, unsafe_allow_html=True)
 
+# ── ASSET TYPE TOGGLE ─────────────────────────────────────────
+if "asset_type" not in st.session_state:
+    st.session_state.asset_type = "stock"
+
+col_l, col_s, col_mid, col_c, col_r = st.columns([2, 1, 2, 1, 2])
+with col_s:
+    if st.button("📈  Stock", use_container_width=True):
+        st.session_state.asset_type = "stock"
+        st.rerun()
+with col_c:
+    if st.button("🪙  Crypto", use_container_width=True):
+        st.session_state.asset_type = "crypto"
+        st.rerun()
+
+asset_type  = st.session_state.asset_type
+mode_color  = "var(--green)" if asset_type == "stock" else "var(--gold)"
+mode_label  = "📈 Stock Mode" if asset_type == "stock" else "🪙 Crypto Mode"
+placeholder = "Apple · TSLA · NVIDIA · Microsoft..." if asset_type == "stock" else "BTC · ETH · SOL · DOGE · XRP..."
+
+st.markdown(f"""
+<div style="text-align:center; margin:14px 0;">
+    <div style="display:inline-block; background:rgba(0,0,0,0.2); border:1px solid {mode_color}; border-radius:20px; padding:6px 20px; font-family:'DM Mono',monospace; font-size:13px; color:{mode_color}; font-weight:600;">
+        {mode_label} — Active
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ── SEARCH BAR ────────────────────────────────────────────────
 col_inp, col_btn = st.columns([5, 1])
 with col_inp:
-    query = st.text_input("q", placeholder="Apple  ·  TSLA  ·  NVIDIA  ·  Amazon  ·  Microsoft...", label_visibility="collapsed")
+    query = st.text_input("q", placeholder=placeholder, label_visibility="collapsed")
 with col_btn:
     analyze = st.button("Analyze 🚀", use_container_width=True)
 
-# Quick tickers
-tickers_html = "<div style='display:flex; justify-content:center; gap:8px; margin-top:12px; flex-wrap:wrap;'>"
-for t in ["AAPL", "TSLA", "NVDA", "MSFT", "GOOGL", "AMZN", "META"]:
-    tickers_html += f"<div style='background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:5px 12px; font-family:DM Mono,monospace; font-size:12px; color:var(--muted);'>{t}</div>"
-tickers_html += "</div>"
-st.markdown(tickers_html, unsafe_allow_html=True)
+# ── QUICK PICKS ───────────────────────────────────────────────
+picks = ["AAPL","TSLA","NVDA","MSFT","GOOGL","AMZN","META"] if asset_type == "stock" else ["BTC","ETH","SOL","DOGE","XRP","ADA","AVAX"]
+picks_html = "<div style='display:flex; justify-content:center; gap:8px; margin-top:12px; flex-wrap:wrap;'>"
+for t in picks:
+    picks_html += f"<div style='background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:5px 12px; font-family:DM Mono,monospace; font-size:12px; color:var(--muted);'>{t}</div>"
+picks_html += "</div>"
+st.markdown(picks_html, unsafe_allow_html=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
 
@@ -160,8 +189,10 @@ if analyze and query.strip():
     with st.spinner(f"Analyzing {query.strip()}... this takes about 60 seconds ⏳"):
         try:
             prog.markdown(show_progress(["Resolver"], "Stock"), unsafe_allow_html=True)
-            result = run_datapulse(query.strip())
-            prog.markdown(show_progress(["Resolver","Stock","News","Sentiment","Risk","Analyst"], ""), unsafe_allow_html=True)
+            result = run_datapulse(query.strip(), asset_type=asset_type)
+            prog.markdown(show_progress(
+                ["Resolver","Stock","News","Sentiment","Risk","Analyst"], ""
+            ), unsafe_allow_html=True)
 
             stock    = result.get("stock_data", {})
             news     = result.get("news_articles", [])
@@ -172,31 +203,38 @@ if analyze and query.strip():
             company  = result.get("company_name", query)
             ticker   = result.get("ticker", query.upper())
 
-            price     = stock.get("current_price", 0)
-            chg       = stock.get("change", 0)
-            chg_pct   = stock.get("change_pct", 0)
-            mktcap    = format_market_cap(stock.get("market_cap", 0))
-            rec       = analysis.get("recommendation", "HOLD")
-            rec_emoji = analysis.get("rec_emoji", "🟡")
-            target    = analysis.get("price_target", price)
-            upside    = analysis.get("upside_pct", 0)
-            risk_score= risk.get("overall_score", 5)
-            risk_label= risk.get("overall_label", "Medium")
-            risk_emoji= risk.get("overall_emoji", "🟡")
-            bull_pct  = social.get("bull_pct", 50)
-            bear_pct  = social.get("bear_pct", 50)
-            chg_color = "var(--green)" if chg >= 0 else "var(--red)"
-            chg_sign  = "+" if chg >= 0 else ""
+            price      = stock.get("current_price", 0)
+            chg        = stock.get("change", 0)
+            chg_pct    = stock.get("change_pct", 0)
+            mktcap     = format_market_cap(stock.get("market_cap", 0))
+            rec        = analysis.get("recommendation", "HOLD")
+            rec_emoji  = analysis.get("rec_emoji", "🟡")
+            target     = analysis.get("price_target", price)
+            upside     = analysis.get("upside_pct", 0)
+            risk_score = risk.get("overall_score", 5)
+            risk_label = risk.get("overall_label", "Medium")
+            risk_emoji = risk.get("overall_emoji", "🟡")
+            bull_pct   = social.get("bull_pct", 50)
+            bear_pct   = social.get("bear_pct", 50)
+            chg_color  = "var(--green)" if chg >= 0 else "var(--red)"
+            chg_sign   = "+" if chg >= 0 else ""
+
+            # Asset type badge
+            asset_badge = "🪙 Cryptocurrency" if asset_type == "crypto" else "📈 Stock"
+            asset_color = "var(--gold)" if asset_type == "crypto" else "var(--green)"
 
             # ── Company Header ──
             st.markdown(f"""
             <div style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:24px 32px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
                 <div>
-                    <div style="font-family:'Manrope',sans-serif; font-size:28px; font-weight:800; color:var(--text); letter-spacing:-0.5px;">{company}</div>
-                    <div style="font-family:'DM Mono',monospace; font-size:13px; color:var(--muted); margin-top:4px;">{ticker} · {stock.get('sector','—')} · {stock.get('industry','—')}</div>
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                        <div style="font-family:'Manrope',sans-serif; font-size:28px; font-weight:800; color:var(--text); letter-spacing:-0.5px;">{company}</div>
+                        <div style="background:rgba(0,0,0,0.3); border:1px solid {asset_color}; border-radius:12px; padding:3px 10px; font-family:'DM Mono',monospace; font-size:11px; color:{asset_color};">{asset_badge}</div>
+                    </div>
+                    <div style="font-family:'DM Mono',monospace; font-size:13px; color:var(--muted);">{ticker} · {stock.get('sector','—')} · {stock.get('industry','—')}</div>
                 </div>
                 <div style="display:flex; align-items:baseline; gap:12px;">
-                    <div style="font-family:'Manrope',sans-serif; font-size:40px; font-weight:800; color:var(--text); letter-spacing:-1px;">${price:,.2f}</div>
+                    <div style="font-family:'Manrope',sans-serif; font-size:40px; font-weight:800; color:var(--text); letter-spacing:-1px;">${price:,.4f}" if asset_type == "crypto" and price < 1 else f"${price:,.2f}</div>
                     <div style="font-family:'DM Mono',monospace; font-size:16px; color:{chg_color};">{chg_sign}{chg:.2f} ({chg_sign}{chg_pct:.2f}%)</div>
                 </div>
             </div>
@@ -211,7 +249,7 @@ if analyze and query.strip():
                 (c1, "📈", "Recommendation", f"{rec_emoji} {rec}", f"Target ${target:,.2f} ({chg_sign}{upside:.1f}%)", rec_bg, rec_bd),
                 (c2, "⚠️", "Risk Level",     f"{risk_emoji} {risk_score}/10", risk_label, "var(--bg3)", "var(--border2)"),
                 (c3, "💬", "Social Mood",    f"{'🟢' if bull_pct>55 else '🔴' if bull_pct<45 else '🟡'} {bull_pct}% Bulls", f"{bear_pct}% Bears", "var(--bg3)", "var(--border2)"),
-                (c4, "🏢", "Market Cap",     mktcap, f"P/E: {stock.get('pe_ratio','N/A')}", "var(--bg3)", "var(--border2)"),
+                (c4, "🏢", "Market Cap",     mktcap, f"Vol: {stock.get('volume',0):,.0f}", "var(--bg3)", "var(--border2)"),
             ]:
                 with col:
                     st.markdown(f"""
@@ -236,7 +274,7 @@ if analyze and query.strip():
                         line=dict(color=c, width=2.5),
                         fill="tozeroy",
                         fillcolor=f"rgba({'0,208,132' if c=='#00d084' else '255,69,96'},0.07)",
-                        hovertemplate="$%{y:.2f}<extra></extra>"
+                        hovertemplate="$%{y:,.4f}<extra></extra>" if asset_type=="crypto" and min(ph)<1 else "$%{y:,.2f}<extra></extra>"
                     ))
                     fig.update_layout(
                         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",

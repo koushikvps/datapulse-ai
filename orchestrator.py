@@ -26,6 +26,7 @@ class PulseState(TypedDict):
     query:          str       # raw user input e.g. "Tesla" or "TSLA"
     ticker:         str       # resolved ticker e.g. "TSLA"
     company_name:   str       # full name e.g. "Tesla Inc."
+    asset_type:     str      # ← ADD THIS LINE ("stock" or "crypto")
 
     # Agent outputs
     stock_data:     dict
@@ -48,69 +49,94 @@ class PulseState(TypedDict):
 def resolver_node(state: PulseState) -> PulseState:
     print(f"\n🔎 RESOLVER: Looking up '{state['query']}'...")
 
-    query = state["query"].strip().upper()
+    query      = state["query"].strip().upper()
+    asset_type = state.get("asset_type", "stock")
 
-    # Try direct ticker first
-    try:
-        test = yf.Ticker(query)
-        info = test.info
-        name = info.get("longName") or info.get("shortName", "")
-        if name and len(name) > 2:
-            print(f"✅ Resolved: {query} → {name}")
+    if asset_type == "crypto":
+        # For crypto just clean the symbol
+        # BTC, ETH, SOL, DOGE etc.
+        symbol = query.replace("-USD", "").replace("$", "")
+
+        # Get name from yfinance
+        try:
+            import yfinance as yf
+            info = yf.Ticker(f"{symbol}-USD").info
+            name = info.get("name") or info.get("shortName") or symbol
+        except:
+            name = symbol
+
+        print(f"✅ Crypto resolved: {symbol} → {name}")
+        return {
+            **state,
+            "ticker":       symbol,
+            "company_name": name,
+            "status":       f"Resolved crypto {symbol}",
+            "completed":    []
+        }
+
+    else:
+        # Original stock resolution logic (keep as-is)
+        try:
+            test = yf.Ticker(query)
+            info = test.info
+            name = info.get("longName") or info.get("shortName", "")
+            if name and len(name) > 2:
+                print(f"✅ Resolved: {query} → {name}")
+                return {
+                    **state,
+                    "ticker":       query,
+                    "company_name": name,
+                    "status":       f"Resolved {query}",
+                    "completed":    []
+                }
+        except:
+            pass
+
+        prompt = f"""What is the NASDAQ or NYSE stock ticker for "{state['query']}"?
+Respond with ONLY the ticker symbol."""
+        try:
+            response  = llm.invoke(prompt)
+            ticker    = response.content.strip().upper().replace(".", "")
+            stock     = yf.Ticker(ticker)
+            info      = stock.info
+            comp_name = info.get("longName") or info.get("shortName", ticker)
+            print(f"✅ Resolved: '{state['query']}' → {ticker} ({comp_name})")
+            return {
+                **state,
+                "ticker":       ticker,
+                "company_name": comp_name,
+                "status":       f"Resolved to {ticker}",
+                "completed":    []
+            }
+        except Exception as e:
             return {
                 **state,
                 "ticker":       query,
-                "company_name": name,
-                "status":       f"Resolved {query}",
-                "completed":    []
+                "company_name": query,
+                "status":       "Resolution failed",
+                "completed":    [],
+                "error":        str(e)
             }
-    except:
-        pass
-
-    # Ask LLM to resolve company name → ticker
-    prompt = f"""What is the NASDAQ or NYSE stock ticker symbol for "{state['query']}"?
-
-Respond with ONLY the ticker symbol, nothing else.
-Examples: AAPL, TSLA, NVDA, MSFT, GOOGL, AMZN"""
-
-    try:
-        response  = llm.invoke(prompt)
-        ticker    = response.content.strip().upper().replace(".", "")
-
-        stock     = yf.Ticker(ticker)
-        info      = stock.info
-        comp_name = info.get("longName") or info.get("shortName", ticker)
-
-        print(f"✅ Resolved: '{state['query']}' → {ticker} ({comp_name})")
-        return {
-            **state,
-            "ticker":       ticker,
-            "company_name": comp_name,
-            "status":       f"Resolved to {ticker}",
-            "completed":    []
-        }
-    except Exception as e:
-        print(f"❌ Could not resolve: {e}")
-        return {
-            **state,
-            "ticker":       query,
-            "company_name": query,
-            "status":       "Resolution failed — using raw input",
-            "completed":    [],
-            "error":        str(e)
-        }
 
 
 # ══════════════════════════════════════════════════════════════
 # NODE 1 — Stock Node
 # ══════════════════════════════════════════════════════════════
+# Replace stock_node with this:
 def stock_node(state: PulseState) -> PulseState:
-    data = get_stock_data(state["ticker"])
+    asset_type = state.get("asset_type", "stock")
+
+    if asset_type == "crypto":
+        from agents.stock_agent import get_crypto_data
+        data = get_crypto_data(state["ticker"])
+    else:
+        data = get_stock_data(state["ticker"])
+
     return {
         **state,
         "stock_data": data,
         "completed":  state.get("completed", []) + ["stock"],
-        "status":     "Stock data fetched"
+        "status":     "Market data fetched"
     }
 
 
@@ -210,7 +236,7 @@ def build_pipeline():
 # ══════════════════════════════════════════════════════════════
 # MAIN FUNCTION — call this from app.py
 # ══════════════════════════════════════════════════════════════
-def run_datapulse(query: str) -> PulseState:
+def run_datapulse(query: str, asset_type: str = "stock") -> PulseState:
     print("\n" + "="*60)
     print(f"🚀 DATAPULSE AI — Analyzing: {query}")
     print("="*60)
@@ -221,6 +247,7 @@ def run_datapulse(query: str) -> PulseState:
         query=           query,
         ticker=          "",
         company_name=    "",
+        asset_type=   asset_type,    # ← ADD THIS LINE
         stock_data=      {},
         news_articles=   [],
         news_sentiment=  {},
