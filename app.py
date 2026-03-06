@@ -88,6 +88,19 @@ html, body,
     border-color: var(--green) !important;
     color: var(--green) !important;
 }
+
+/* Analyze button — stands out green */
+[data-testid="stButton"]:last-of-type button {
+    background: var(--green) !important;
+    color: #07090f !important;
+    border: none !important;
+    font-weight: 800 !important;
+}
+[data-testid="stButton"]:last-of-type button:hover {
+    background: #00f097 !important;
+    box-shadow: 0 0 24px rgba(0,208,132,0.4) !important;
+    transform: translateY(-1px) !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -234,7 +247,7 @@ if analyze and query.strip():
                     <div style="font-family:'DM Mono',monospace; font-size:13px; color:var(--muted);">{ticker} · {stock.get('sector','—')} · {stock.get('industry','—')}</div>
                 </div>
                 <div style="display:flex; align-items:baseline; gap:12px;">
-                    <div style="font-family:'Manrope',sans-serif; font-size:40px; font-weight:800; color:var(--text); letter-spacing:-1px;">${price:,.4f}" if asset_type == "crypto" and price < 1 else f"${price:,.2f}</div>
+                    <div style="font-family:'Manrope',sans-serif; font-size:40px; font-weight:800; color:var(--text); letter-spacing:-1px;">${f"{price:,.4f}" if asset_type == "crypto" and price < 1 else f"{price:,.2f}"}</div>
                     <div style="font-family:'DM Mono',monospace; font-size:16px; color:{chg_color};">{chg_sign}{chg:.2f} ({chg_sign}{chg_pct:.2f}%)</div>
                 </div>
             </div>
