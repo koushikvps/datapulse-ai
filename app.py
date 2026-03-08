@@ -10,6 +10,7 @@ from orchestrator import run_datapulse
 from agents.stock_agent import format_market_cap
 from backtester import run_strategy_analysis, STRATEGIES
 from agents.strategy_agent import generate_strategy_verdict, suggest_strategies_by_risk, RISK_PROFILES
+from top10 import render_top10
 
 st.set_page_config(page_title="DataPulse AI", page_icon="📡", layout="wide", initial_sidebar_state="collapsed")
 
@@ -89,6 +90,19 @@ html,body,[data-testid="stAppViewContainer"],[data-testid="stMain"],[data-testid
 .dp-cta-purple [data-testid="stButton"]>button:hover{background:#c4b5fd!important;box-shadow:0 0 20px rgba(167,139,250,0.35)!important;}
 .dp-cta-gold [data-testid="stButton"]>button{background:#fbbf24!important;color:#07090f!important;border:none!important;font-weight:800!important;font-size:15px!important;padding:14px!important;border-radius:10px!important;}
 .dp-cta-gold [data-testid="stButton"]>button:hover{background:#fcd34d!important;box-shadow:0 0 20px rgba(251,191,36,0.3)!important;}
+
+/* ── Top 10 card click button — looks like a subtle CTA under each card ── */
+.dp-top10-btn [data-testid="stButton"]>button{
+    background:rgba(0,208,132,0.06)!important;color:#00d084!important;
+    border:1px solid rgba(0,208,132,0.22)!important;border-radius:8px!important;
+    font-family:'DM Mono',monospace!important;font-weight:600!important;
+    font-size:11px!important;padding:7px 10px!important;
+    letter-spacing:0.5px!important;text-transform:uppercase!important;
+}
+.dp-top10-btn [data-testid="stButton"]>button:hover{
+    background:rgba(0,208,132,0.14)!important;border-color:#00d084!important;
+    box-shadow:0 0 12px rgba(0,208,132,0.2)!important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -102,7 +116,8 @@ def mk_btn(label: str, cls: str, key: str) -> bool:
 
 # Session state
 for k, v in {"asset_type":"stock","action":None,"strategy_mode":"backtest",
-              "risk_profile":"🟠 Moderate","result":None,"strategy_result":None}.items():
+              "risk_profile":"🟠 Moderate","result":None,"strategy_result":None,
+              "auto_analyze":None}.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
@@ -151,10 +166,20 @@ with t2:
 asset_type = st.session_state.asset_type
 ph_text = "AAPL · Tesla · NVIDIA · Microsoft..." if asset_type=="stock" else "BTC · ETH · SOL · DOGE · XRP..."
 
+# ── Handle Top 10 auto-analyze click ──────────────────────────
+# If a top10 card was clicked last run, auto_analyze holds the ticker.
+# We use a text_input with a dynamic default via query_params workaround:
+# store the ticker in session, then use it as the value below.
+_auto = st.session_state.get("auto_analyze")
+
 st.markdown("<div style='height:18px;'></div>", unsafe_allow_html=True)
 _, sc, _ = st.columns([1, 4, 1])
 with sc:
-    query = st.text_input("q", placeholder=ph_text, key="main_query", label_visibility="collapsed")
+    query = st.text_input("q",
+        value=_auto if _auto else "",
+        placeholder=ph_text,
+        key="main_query",
+        label_visibility="collapsed")
 
 picks = ["AAPL","TSLA","NVDA","MSFT","GOOGL","AMZN","META"] if asset_type=="stock" else ["BTC","ETH","SOL","DOGE","XRP","ADA","AVAX"]
 st.markdown(
@@ -178,6 +203,26 @@ with ac2:
 
 st.markdown("<hr style='border-color:#1e2d3d;margin:28px 0;'>", unsafe_allow_html=True)
 
+# ══════════════════════════════════════════════════════════════
+# TOP 10 PANEL — shown when no action is selected yet
+# ══════════════════════════════════════════════════════════════
+if st.session_state.action is None:
+    def _on_top10_click(ticker: str):
+        """Called when user clicks Analyze on a Top 10 card."""
+        st.session_state.auto_analyze = ticker
+        st.session_state.action       = "analyze"
+        st.session_state.result       = None
+        st.rerun()
+
+    render_top10(_on_top10_click)
+
+# ── Auto-trigger analysis if a top10 card was just clicked ────
+if _auto and st.session_state.action == "analyze" and not st.session_state.result:
+    st.session_state.auto_analyze = None   # clear flag so it won't loop
+    _ticker_to_run = _auto
+else:
+    _ticker_to_run = None
+
 # ════════════════════════════════════════════════════════════
 # ANALYZE FLOW
 # ════════════════════════════════════════════════════════════
@@ -187,8 +232,15 @@ if st.session_state.action == "analyze":
     with btn_col:
         run_analyze = mk_btn("🚀  Run AI Analysis", "dp-cta-green", "btn_analyze")
 
+    # Trigger from button click OR from Top 10 card click
+    ticker_to_analyze = None
     if run_analyze:
-        if not query.strip():
+        ticker_to_analyze = query.strip()
+    elif _ticker_to_run:
+        ticker_to_analyze = _ticker_to_run
+
+    if ticker_to_analyze:
+        if not ticker_to_analyze:
             st.warning("⚠️ Enter a ticker above first!")
         else:
             prog = st.empty()
@@ -202,9 +254,9 @@ if st.session_state.action == "analyze":
                     h += f"<div style='{s}border-radius:20px;padding:5px 14px;font-family:DM Mono,monospace;font-size:12px;'>{icon} {p}{name}</div>"
                 return h + "</div>"
             prog.markdown(show_prog([],"Resolver"), unsafe_allow_html=True)
-            with st.spinner(f"Analyzing {query.strip()}..."):
+            with st.spinner(f"Analyzing {ticker_to_analyze}..."):
                 try:
-                    result = run_datapulse(query.strip(), asset_type=asset_type)
+                    result = run_datapulse(ticker_to_analyze, asset_type=asset_type)
                     prog.markdown(show_prog(["Resolver","Stock","News","Sentiment","Risk","Analyst"],""), unsafe_allow_html=True)
                     st.session_state.result = result
                 except Exception as e:
